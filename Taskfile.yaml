@@ -17,6 +17,78 @@ tasks:
         cmds:
             - kind delete cluster --name {{.CLUSTER_NAME}}
 
+    kind:deploy-standalone-postgres:
+        desc: Deploy standalone postgres to Kind
+        cmds:
+            - task: kind:create
+            - task: kind:install-standalone-postgres
+            - task: kind:verify
+            - task: kind:teardown
+
+    kind:deploy-standalone-orioledb:
+        desc: Deploy standalone orioledb to Kind
+        cmds:
+            - task: kind:create
+            - task: kind:install-standalone-orioledb
+            - task: kind:verify
+            - task: kind:teardown
+
+    kind:deploy-ha-postgres:
+        desc: Deploy HA postgres to Kind
+        cmds:
+            - task: kind:create
+            - task: kind:install-ha-postgres
+            - task: kind:verify
+            - task: kind:teardown
+
+    kind:deploy-ha-orioledb:
+        desc: Deploy HA orioledb to Kind
+        cmds:
+            - task: kind:create
+            - task: kind:install-ha-orioledb
+            - task: kind:verify
+            - task: kind:teardown
+
+    kind:install-standalone-postgres:
+        desc: Install standalone postgres chart
+        dir: supabase-postgres
+        cmds:
+            - helm install test . --set variant=postgres --set architecture.type=standalone --wait
+
+    kind:install-standalone-orioledb:
+        desc: Install standalone orioledb chart
+        dir: supabase-postgres
+        cmds:
+            - helm install test . --set variant=orioledb --set architecture.type=standalone --wait
+
+    kind:install-ha-postgres:
+        desc: Install HA postgres chart
+        dir: supabase-postgres
+        cmds:
+            - helm install test . --set variant=postgres --set architecture.type=ha --set architecture.ha.replicas=3 --wait
+
+    kind:install-ha-orioledb:
+        desc: Install HA orioledb chart
+        dir: supabase-postgres
+        cmds:
+            - helm install test . --set variant=orioledb --set architecture.type=ha --set architecture.ha.replicas=3 --wait
+
+    kind:verify:
+        desc: Verify StatefulSet is running
+        cmds:
+            - kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=supabase-postgres --timeout=300s
+
+    kind:teardown:
+        desc: Teardown Kind cluster
+        cmds:
+            - task: kind:delete
+
+    chart:test:
+        desc: Test chart
+        dir: supabase-postgres
+        cmds:
+            - helm unittest .
+
     clean:
         desc: Delete cluster and cleanup
         cmds:

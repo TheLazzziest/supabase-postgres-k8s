@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "supabase-postgres.fullname" . }}
+  labels:
+    {{- include "supabase-postgres.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "supabase-postgres.fullname" . }}
+  replicas: {{ index .Values.architecture .Values.architecture.type "replicas" }}
+  selector:
+    matchLabels:
+      {{- include "supabase-postgres.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "supabase-postgres.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if eq .Values.architecture.type "ha" }}
+      {{- if .Values.architecture.ha.serviceAccount }}
+      serviceAccountName: {{ include "supabase-postgres.fullname" . }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgres
+          image: {{ include "supabase-postgres.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret | default (include "supabase-postgres.fullname" .) }}
+                  key: {{ .Values.auth.secretKeys.adminPasswordKey | default "password" }}
+                  optional: true
+          command: ["docker-entrypoint.sh"]
+          args:
+            - "postgres"
+            - "-c"
+            - "config_file=/etc/postgresql/postgresql.conf"
+          {{- $archType := .Values.architecture.type }}
+          {{- $archConfig := index .Values.architecture $archType | required "Architecture type '{{ $archType }}' not found in values.yaml" }}
+          readinessProbe:
+            {{- toYaml $archConfig.readinessProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml $archConfig.livenessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.configMapName }}
+            - name: config
+              mountPath: /etc/postgresql
+            {{- end }}
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: {{ .Values.storage.subPath }}
+      volumes:
+        {{- if .Values.configMapName }}
+        - name: config
+          configMap:
+            name: {{ .Values.configMapName }}
+            items:
+              - key: {{ .Values.configKey }}
+                path: postgresql.conf
+        {{- else }}
+        - name: config
+          emptyDir: {}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- else }}
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+          operator: Equal
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.storage.className }}
+        storageClassName: {{ .Values.storage.className }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}{{ .Values.storage.unit }}

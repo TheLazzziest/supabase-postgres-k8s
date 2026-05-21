@@ -1,0 +1,20 @@
+# 1. Get the connection information:
+
+     kubectl get --namespace {{ .Release.Namespace }} svc {{ include "supabase-postgres.fullname" . }} -o jsonpath="{.spec.clusterIP}"
+     kubectl get --namespace {{ .Release.Namespace }} secret {{ .Release.Name }} -o jsonpath="{.data.password}" | base64 -d
+
+# 2. Connect to the database:
+
+     psql "host=<IP> port=5432 user=postgres password=<PASSWORD> dbname=postgres"
+
+{{- if eq .Values.architecture.type "standalone" }}
+{{- if eq .Values.architecture.standalone.service.type "LoadBalancer" }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch its status by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "supabase-postgres.fullname" . }}'
+{{- end }}
+{{- else }}
+{{- if eq .Values.architecture.ha.services.primary.type "LoadBalancer" }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch its status by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "supabase-postgres.fullname" . }}'
+{{- end }}
+{{- end }}

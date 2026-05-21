@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "supabase-postgres.fullname" . }}
+  labels:
+    {{- include "supabase-postgres.labels" . | nindent 4 }}
+spec:
+  type: {{ if eq .Values.architecture.type "standalone" }}{{ .Values.architecture.standalone.service.type }}{{ else }}{{ .Values.architecture.ha.services.primary.type }}{{ end }}
+  ports:
+    - name: postgres
+      port: {{ if eq .Values.architecture.type "standalone" }}{{ .Values.architecture.standalone.service.port }}{{ else }}{{ .Values.architecture.ha.services.primary.port }}{{ end }}
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    {{- include "supabase-postgres.selectorLabels" . | nindent 4 }}
