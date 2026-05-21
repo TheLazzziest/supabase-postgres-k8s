@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/helm-unittest/helm-unittest/main/schema/helm-testsuite.json
+
+suite: Service Tests
+templates:
+  - service.yaml
+
+tests:
+  - it: should create ClusterIP service for standalone mode
+    set:
+      variant: postgres
+      architecture:
+        type: standalone
+        standalone:
+          replicas: 1
+    asserts:
+      - equal:
+          path: kind
+          value: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 5432
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 5432
+
+  - it: should create ClusterIP service for HA mode
+    set:
+      variant: postgres
+      architecture:
+        type: ha
+        ha:
+          replicas: 3
+    asserts:
+      - equal:
+          path: kind
+          value: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP

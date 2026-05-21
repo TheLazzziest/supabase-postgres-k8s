@@ -1,0 +1,195 @@
+# Default values for supabase-postgres.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# -- Database engine variant to use. Options: "postgres", "orioledb"
+variant: postgres
+
+# -- Deployment architecture configuration
+architecture:
+    # -- Deployment topology. Options: "standalone", "ha"
+    type: standalone
+
+    # -- Configuration specific to standalone mode
+    standalone:
+        # -- Number of replicas (must be 1)
+        replicas: 1
+        # -- Readiness probe for standalone Postgres
+        readinessProbe:
+            exec:
+                command:
+                    - pg_isready
+                    - -U
+                    - postgres
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+            periodSeconds: 10
+        # -- Liveness probe for standalone Postgres
+        livenessProbe:
+            exec:
+                command:
+                    - pg_isready
+                    - -U
+                    - postgres
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+            periodSeconds: 20
+        # -- Service configuration for standalone
+        service:
+            # -- Kubernetes service type (ClusterIP, NodePort, LoadBalancer)
+            type: ClusterIP
+            # -- Service port for Postgres connections
+            port: 5432
+
+    # -- Configuration specific to HA mode
+    ha:
+        # -- Number of replicas in the HA cluster
+        replicas: 3
+        # -- Service account configuration for HA mode
+        serviceAccount:
+            # -- Annotations to add to the service account
+            annotations: {}
+            # -- The name of the service account to use.
+            name: ""
+
+        # -- Readiness probe for HA nodes
+        readinessProbe:
+            exec:
+                command:
+                    - curl
+                    - -f
+                    - http://localhost:8008/read-only
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+            periodSeconds: 10
+        # -- Liveness probe for HA nodes
+        livenessProbe:
+            exec:
+                command:
+                    - curl
+                    - -f
+                    - http://localhost:8008/health
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+            periodSeconds: 20
+        # -- Patroni cluster configuration
+        patroni:
+            loop_wait: 10
+            ttl: 30
+            retry_timeout: 10
+        # -- Patroni DCS endpoint service configuration
+        services:
+            # -- Primary (read-write) service
+            primary:
+                # -- Enable primary service
+                enabled: true
+                # -- Service type (ClusterIP, NodePort, LoadBalancer)
+                type: ClusterIP
+                # -- Service port
+                port: 5432
+            # -- Replica (read-only) service
+            replica:
+                # -- Enable replica service
+                enabled: true
+                # -- Service type (ClusterIP, NodePort, LoadBalancer)
+                type: ClusterIP
+                # -- Service port
+                port: 5432
+        # -- Sidecar container configuration
+        sidecar:
+            # -- Enable Patroni sidecar for HA
+            patroni:
+                enabled: true
+                # -- Patroni image (defaults to the main image)
+                image: ""
+                # -- Sidecar resources
+                resources: {}
+
+# -- Global container image settings
+image:
+    pullPolicy: IfNotPresent
+
+# -- Variant-specific configurations
+variants:
+    postgres:
+        image:
+            repository: supabase/postgres
+            tag: "15.1.1.61"
+    orioledb:
+        image:
+            repository: supabase/postgres
+            tag: "15.1.1.61-oriole"
+
+# -- External ConfigMap for postgresql.conf (optional)
+# If not set, the chart assumes postgresql.conf is included in the image at /etc/postgresql/
+# If set, the chart will use the specified ConfigMap instead of relying on the image default
+configMapName: ""
+# -- ConfigMap key containing postgresql.conf (default: postgresql.conf)
+configKey: "postgresql.conf"
+
+# -- Authentication and secret configuration
+auth:
+    # -- Name of an existing secret containing the database password.
+    # If not set, a new secret will be created.
+    existingSecret: ""
+    secretKeys:
+        # -- Key in the secret that contains the admin password
+        adminPasswordKey: "password"
+
+# -- Security context for the Postgres container
+securityContext: {}
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+# -- Security context for the pod
+podSecurityContext: {}
+    # fsGroup: 1000
+
+# -- Pod disruption budget configuration
+podDisruptionBudget:
+    # -- Enable PodDisruptionBudget
+    enabled: true
+    # -- Min available pods during disruption
+    minAvailable: 1
+
+# -- Persistent storage configuration
+storage:
+    # -- Size of the data volume (e.g., "10Gi", "500Mi")
+    size: "10Gi"
+    # -- Storage class to use for the PVC. If empty, uses the default storage class.
+    className: ""
+    # -- SubPath within the volume to mount
+    subPath: "data"
+    # -- WAL (Write-Ahead Log) storage configuration
+    wal:
+        # -- Use a separate PVC for WAL
+        separatePvc: false
+        # -- Size of the WAL volume
+        size: "5Gi"
+
+# -- Resource requests and limits for the Postgres container
+resources: {}
+    # limits:
+    #   cpu: 1000m
+    #   memory: 2Gi
+    # requests:
+    #   cpu: 500m
+    #   memory: 1Gi
+
+# -- Node selector for pod assignment
+nodeSelector: {}
+
+# -- Tolerations for pod assignment (defaults allow scheduling on control-plane nodes)
+tolerations: []
+    # - key: node-role.kubernetes.io/control-plane
+    #   effect: NoSchedule
+    #   operator: Equal
+
+# -- Affinity rules for pod assignment
+affinity: {}
+
+# -- Annotations to add to the pods
+podAnnotations: {}
+
+# -- Labels to add to the pods
+podLabels: {}

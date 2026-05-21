@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/helm-unittest/helm-unittest/main/schema/helm-testsuite.json
+
+suite: Common Labels Tests
+templates:
+    - statefulset.yaml
+    - service.yaml
+
+tests:
+    - it: should include standard Kubernetes labels on StatefulSet
+      template: statefulset.yaml
+      asserts:
+          - equal:
+                path: metadata.labels["app.kubernetes.io/name"]
+                value: supabase-postgres
+          - equal:
+                path: metadata.labels["app.kubernetes.io/instance"]
+                value: RELEASE-NAME
+          - matchRegex:
+                path: metadata.labels["helm.sh/chart"]
+                pattern: "^supabase-postgres-[0-9.+]+"
+    - it: should include standard Kubernetes labels on Service
+      template: service.yaml
+      asserts:
+          - equal:
+                path: metadata.labels["app.kubernetes.io/name"]
+                value: supabase-postgres
+          - equal:
+                path: metadata.labels["app.kubernetes.io/instance"]
+                value: RELEASE-NAME

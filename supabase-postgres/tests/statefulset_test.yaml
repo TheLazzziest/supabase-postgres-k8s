@@ -1,0 +1,162 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/helm-unittest/helm-unittest/main/schema/helm-testsuite.json
+
+suite: StatefulSet Tests
+templates:
+  - statefulset.yaml
+
+tests:
+  - it: should use the correct Standard image
+    set:
+      variant: postgres
+      architecture:
+        type: standalone
+        standalone:
+          replicas: 1
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "^supabase/postgres:.*"
+
+  - it: should use the correct OrioleDB image
+    set:
+      variant: orioledb
+      architecture:
+        type: standalone
+        standalone:
+          replicas: 1
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "^supabase/postgres:.*-oriole$"
+
+  - it: should mount the postgresql.conf from external ConfigMap
+    set:
+      variant: postgres
+      architecture:
+        type: standalone
+        standalone:
+          replicas: 1
+      configMapName: postgres-config
+      configKey: postgresql.conf
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0]
+          value:
+            name: config
+            mountPath: /etc/postgresql
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1]
+          value:
+            name: data
+            mountPath: /var/lib/postgresql/data
+            subPath: data
+      - equal:
+          path: spec.template.spec.volumes[0]
+          value:
+            name: config
+            configMap:
+              name: postgres-config
+              items:
+                - key: postgresql.conf
+                  path: postgresql.conf
+
+  - it: should use image default postgresql.conf when no external ConfigMap provided
+    set:
+      variant: postgres
+      architecture:
+        type: standalone
+        standalone:
+          replicas: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0]
+          value:
+            name: data
+            mountPath: /var/lib/postgresql/data
+            subPath: data
+      - equal:
+          path: spec.template.spec.volumes[0]
+          value:
+            name: config
+            emptyDir: {}
+
+  - it: should set replicas to 1 when architecture is standalone
+    set:
+      variant: postgres
+      architecture:
+        type: standalone
+        standalone:
+          replicas: 1
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set replicas to 3 when architecture is HA
+    set:
+      variant: postgres
+      architecture:
+        type: ha
+        ha:
+          replicas: 3
+          serviceAccount:
+            annotations: {}
+            name: ""
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should use Patroni readiness probe for HA
+    set:
+      variant: postgres
+      architecture:
+        type: ha
+        ha:
+          replicas: 3
+          serviceAccount:
+            annotations: {}
+            name: ""
+      configMapName: postgres-config
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[0]
+          value: curl
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          value: http://localhost:8008/read-only
+
+  - it: should use Patroni liveness probe for HA
+    set:
+      variant: postgres
+      architecture:
+        type: ha
+        ha:
+          replicas: 3
+          serviceAccount:
+            annotations: {}
+            name: ""
+      configMapName: postgres-config
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[0]
+          value: curl
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          value: http://localhost:8008/health
+
+  - it: should set serviceAccountName for HA mode when enabled
+    set:
+      variant: postgres
+      architecture:
+        type: ha
+        ha:
+          replicas: 3
+          serviceAccount:
+            annotations: {}
+            name: ""
+      configMapName: postgres-config
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-supabase-postgres
